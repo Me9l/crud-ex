@@ -1,30 +1,61 @@
 import { createContext, useContext, useState } from 'react';
+import { apiClient } from "../api/ApiClient";
+import { executeJwtAuthenticationService } from "../api/AuthenticationApiService";
 
+// Create Context
 export const AuthContext = createContext()
 
 export const useAuth = () => useContext(AuthContext)
 
+// Share Context with other Components
 export default function AuthProvider({ children }) {
 
   const [isAuthenticated, setAuthenticated] = useState(false)
-  const [user, setUser] = useState('default')
-  function login(username, password) {
-    if (username === "user" && password === "1234") {
-      setAuthenticated(true)
-      setUser(username)
-      return true
-    } else {
-      setAuthenticated(false)
+  const [username, setUsername] = useState(null)
+  const [token, setToken] = useState(null)
+
+  async function login(username, password) {
+
+    try {
+
+      const response = await executeJwtAuthenticationService(username, password)
+
+      if (response.status == 200) {
+
+        const jwtToken = 'Bearer ' + response.data.token
+
+        setAuthenticated(true)
+        setUsername(username)
+        setToken(jwtToken)
+
+        apiClient.interceptors.request.use(
+          (config) => {
+            console.log('intercepting and adding a token')
+            config.headers.Authorization = jwtToken
+            return config
+          }
+        )
+
+        return true
+      } else {
+        logout()
+        return false
+      }
+    } catch (error) {
+      logout()
       return false
     }
   }
 
+
   function logout() {
     setAuthenticated(false)
+    setToken(null)
+    setUsername(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, setAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, login, logout, username, token }}>
       {children}
     </AuthContext.Provider>
   )
